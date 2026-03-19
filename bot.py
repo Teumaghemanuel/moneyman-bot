@@ -25,7 +25,6 @@ MIN_WITHDRAWAL = 1500
 DEPOSIT_PHONE = "+237652870191"
 
 # Stockage temporaire (remplace la base de données pour l'exemple)
-# Dans une vraie application, utilisez PostgreSQL ou Redis
 user_balances = {}  # {user_id: balance}
 user_deposits = {}  # {user_id: total_deposited}
 user_state = {}     # État des conversations
@@ -185,17 +184,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state = user_state[user_id]
         
         if state.get('action') == 'waiting_payment':
-            # L'utilisateur a envoyé une capture/code
             await update.message.reply_text(
                 f"✅ Reçu ! Votre demande sera vérifiée par l'administrateur.\n"
                 f"Référence: {state['reference']}"
             )
-            # Notifier l'admin (simplifié)
             logger.info(f"Paiement en attente - User: {user_id}, Montant: {state['amount']}")
             del user_state[user_id]
         
         elif state.get('action') == 'correcting':
-            # Vérifier la correction
             is_correct = text.strip().lower() == state['correct_text'].lower()
             
             if is_correct:
@@ -247,7 +243,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ Numéro invalide. Format: 6XXXXXXXX")
     
     else:
-        # Réponse par défaut
         await update.message.reply_text("Utilisez les boutons pour interagir avec le bot.")
 
 # ============================================
@@ -257,7 +252,6 @@ async def admin_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
     
-    # Format: /approve user_id amount
     try:
         _, user_id, amount = update.message.text.split()
         user_id = int(user_id)
@@ -287,7 +281,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ============================================
-# CONFIGURATION DU SERVEUR FLASK POUR HEALTH CHECK
+# SERVEUR FLASK POUR HEALTH CHECK
 # ============================================
 flask_app = Flask(__name__)
 
@@ -297,9 +291,10 @@ def health():
 
 @flask_app.route('/')
 def home():
-    return 'Bot is running!', 200
+    return 'Bot Moneyman est en ligne ! ✅', 200
 
 def run_flask():
+    """Fonction pour lancer Flask dans un thread séparé"""
     flask_app.run(host='0.0.0.0', port=PORT)
 
 # ============================================
@@ -313,17 +308,19 @@ async def main():
     application.add_handler(CommandHandler("approve", admin_approve))
     application.add_handler(CommandHandler("stats", admin_stats))
     
-    # Démarrer Flask dans un thread séparé (pour le health check)
+    # Démarrer Flask dans un thread séparé
     flask_thread = Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
+    logger.info("🌐 Serveur Flask démarré sur le port %s", PORT)
     
     # Configurer le webhook
     webhook_url = f"{WEBHOOK_URL}/webhook"
     await application.bot.set_webhook(url=webhook_url)
-    logger.info(f"Webhook configuré sur {webhook_url}")
+    logger.info(f"✅ Webhook configuré sur {webhook_url}")
     
     # Démarrer le bot avec webhook
+    logger.info("🚀 Démarrage du bot Telegram...")
     await application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
@@ -332,4 +329,9 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())s
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("👋 Bot arrêté manuellement")
+    except Exception as e:
+        logger.error(f"❌ Erreur fatale: {e}")
